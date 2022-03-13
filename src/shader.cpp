@@ -1,4 +1,6 @@
 #include "shader.h"
+#include <fstream>
+#include <sstream>
 
 
 Shader::Shader()
@@ -10,9 +12,21 @@ Shader::~Shader()
     glDeleteProgram(ID);
 }
 
+static std::string getContentFromFile(const std::string &path)
+{
+    std::ifstream fs;
+    std::stringstream ss;
+
+    fs.open(path);
+    ss << fs.rdbuf();
+    fs.close();
+
+    return ss.str();
+}
+
 std::shared_ptr<Shader> Shader::fromFile(const std::string &vertexPath, const std::string &fragmentPath)
 {
-    return fromString("", "");
+    return fromString(getContentFromFile(vertexPath), getContentFromFile(fragmentPath));
 }
 
 std::shared_ptr<Shader> Shader::fromString(const std::string &vertex, const std::string &fragment)
