@@ -27,7 +27,7 @@ public:
     std::shared_ptr<Scene> top();
 
     void onEvent(Event &event);
-    void update(int dt);
+    void update(float dt);
     void draw();
 
 private:

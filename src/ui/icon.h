@@ -9,9 +9,11 @@ namespace playos {
 class Icon: public Text {
 public:
     Icon(Element *parent, const std::string &name);
+    static void init(const std::string &resourceDir);
 
     void setSize(int size) {
         setFontSize(size);
+        Element::setSize(size, size);
     }
 
     int getSize() {

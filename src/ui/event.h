@@ -32,10 +32,12 @@ class Event {
 public:
     enum Type {
         KEY,
+        WINDOW_RESIZE,
         MOUSE_BUTTON,
         MOUSE_WHEEL,
         MOUSE_MOVE,
-        WINDOW_RESIZE,
+        MOUSE_ENTER,
+        MOUSE_LEAVE,
     };
 
 public:
@@ -52,11 +54,13 @@ public:
             int height;
         };
 
-        struct { // For mouse move
-            int x, y;
-        };
     };
+    // For mouse position
+    int x, y;
 };
+
+using MouseEvent = Event;
+using KeyEvent = Event;
 
 }
 

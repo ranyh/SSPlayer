@@ -9,11 +9,11 @@ ShaderManager &ShaderManager::instance()
     return manager;
 }
 
-void ShaderManager::init()
+void ShaderManager::init(const std::string &resourceDir)
 {
-    registerShader("default", Shader::fromFile("../shaders/3d.vs", "../shaders/base.fs"));
-    registerShader("font", Shader::fromFile("../shaders/3d.vs", "../shaders/font.fs"));
-    registerShader("color", Shader::fromFile("../shaders/3d.vs", "../shaders/base_color.fs"));
+    registerShader("default", Shader::fromFile(resourceDir + "/shaders/3d.vs", resourceDir + "/shaders/base.fs"));
+    registerShader("font", Shader::fromFile(resourceDir + "/shaders/3d.vs", resourceDir + "/shaders/font.fs"));
+    registerShader("primitive", Shader::fromFile(resourceDir + "/shaders/3d.vs", resourceDir + "/shaders/primitive.fs"));
 }
 
 void ShaderManager::registerShader(const std::string &name, std::shared_ptr<Shader> shader)

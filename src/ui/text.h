@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "color.h"
 #include "font/font_manager.h"
 #include "gl/shader.h"
 #include "gl/texture.h"
@@ -16,6 +17,18 @@ namespace playos {
 
 class Text: public Element {
 public:
+    enum Alignment {
+        AlignLeft       = 1 << 0,
+        AlignRight      = 1 << 1,
+        AlignHCenter    = 1 << 2,
+
+        AlignTop        = 1 << 3,
+        AlignBottom     = 1 << 4,
+        AlignVCenter    = 1 << 5,
+
+        AlignCenter     = AlignHCenter | AlignVCenter,
+    };
+
     class _char {
     public:
         void use() {
@@ -31,6 +44,8 @@ public:
         int bearingY;
         int advance;
 
+        float x, y, w, h;
+
         friend class Text;
     };
 
@@ -41,12 +56,15 @@ public:
 
     void setText(const std::string &text);
     std::string text();
-    void setColor(glm::vec4 color);
+    void setColor(Color color);
     void setFontSize(int size);
     int getFontSize();
+    void setAlignment(int align);
 
     std::shared_ptr<Font> font();
     void setFont(std::shared_ptr<Font> font);
+
+    int textWidth();
 
 public:
     void onEvent(Event &event) override;
@@ -56,11 +74,18 @@ public:
 protected:
     virtual std::vector<Char> createChars();
     Char createChar(const Font::Buffer &buffer);
+    void setForceVCenter(bool force);
+
+private:
+    void calculateTextWidth();
 
 private:
     std::string m_text;
-    glm::vec4 m_color;
+    Color m_color;
     int m_fontSize;
+    int m_alignment;
+    int m_textWidth;
+    bool m_forceVCenter;
     std::shared_ptr<Font> m_font;
 
     std::shared_ptr<Shader> m_shader;

@@ -24,6 +24,11 @@ Backend::~Backend()
     m_handler = nullptr;
 }
 
+void Backend::onError(const std::string &msg)
+{
+    m_handler->playBackendCallback(CallbackReason::ERROR, Error::create(msg).get());
+}
+
 bool Backend::play(const std::string &uri)
 {
     setUri(uri);
@@ -33,7 +38,7 @@ bool Backend::play(const std::string &uri)
 bool Backend::play()
 {
     post<bool>([&]() {
-        _play();
+        onPlay();
         m_state = Backend::PLAYING;
     });
 
@@ -44,7 +49,7 @@ bool Backend::play()
 bool Backend::pause()
 {
     post<bool>([&]() {
-        _pause();
+        onPause();
         m_state = Backend::PAUSED;
     });
 
@@ -54,17 +59,17 @@ bool Backend::pause()
 bool Backend::stop()
 {
     post<bool>([&]() {
-        _stop();
+        onStop();
         m_state = Backend::STOPED;
     });
 
     return true;
 }
 
-int Backend::seek(int pos)
+int Backend::seek(int64_t pos)
 {
     post<bool>([&, pos]() {
-        _seek(pos);
+        onSeek(pos);
     });
 
     return 0;

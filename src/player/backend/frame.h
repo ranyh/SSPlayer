@@ -56,7 +56,9 @@ protected:
 };
 
 struct Frame: public std::enable_shared_from_this<Frame> {
+public:
     std::shared_ptr<VideoFrame> vFrame;
+    int64_t current;
 
 public:
     static std::shared_ptr<Frame> create(std::shared_ptr<VideoFrame> frame);
@@ -64,7 +66,7 @@ public:
 
 private:
     Frame(const std::shared_ptr<VideoFrame> frame):
-        vFrame(frame) { }
+        vFrame(frame), current(0) { }
 };
 
 }

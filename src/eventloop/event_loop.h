@@ -67,6 +67,7 @@ public:
 
     int run(bool thread = false);
     int stop();
+    void setMainTask(Task *task);
 
     bool isRunOnCurrentThread();
 
@@ -82,6 +83,8 @@ protected:
     std::once_flag m_runFlag;
     std::thread::id m_threadId;
     std::unique_ptr<std::thread> m_thread;
+    std::unique_ptr<Task *> m_fakeMainTask;
+    Task *m_mainTask;
 };
 
 }

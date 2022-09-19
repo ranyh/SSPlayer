@@ -62,6 +62,7 @@ int SelectEventLoop::addFdWatchInternal(int fd, Task *task, int events)
 {
     m_fdsMux.lock();
     m_fds[fd] = task;
+    task->events = events;
     m_fdsMux.unlock();
 
     return 0;

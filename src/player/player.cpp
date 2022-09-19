@@ -46,6 +46,11 @@ void Player::stop()
     m_backend->stop();
 }
 
+void Player::seek(int64_t i)
+{
+    m_backend->seek(i);
+}
+
 bool Player::isPlaying()
 {
     return m_backend->isPlaying();
@@ -67,12 +72,38 @@ void Player::playBackendCallback(player::CallbackReason reason, void *data)
 {
     switch (reason) {
     case player::READY: {
-        auto info = reinterpret_cast<player::VideoFrameInfo *>(data);
-        runOnRenderThread(std::bind(&Player::onFrameInfo, this, info->shared_from_this()));
+        auto _info = reinterpret_cast<player::VideoInfo *>(data);
+        auto info = _info->shared_from_this();
+        runOnRenderThread([info, this]() {
+            m_videoInfo = info;
+            if (m_handler)
+                m_handler->onReady(info);
+        });
+    }   break;
+    case player::STATE_CHANGED: {
+        auto state = reinterpret_cast<player::StateChanged *>(data);
+        switch (state->state) {
+        case player::Backend::PLAYING: {
+            auto info = state->get<player::VideoFrameInfo *>();
+            runOnRenderThread(std::bind(&Player::onFrameInfo, this, info->shared_from_this()));
+        }   break;
+        default:
+            printf("State changed: %d\n", state->state);
+            break;
+        }
     }   break;
     case player::FRAME: {
         auto frame = reinterpret_cast<player::Frame *>(data);
         runOnRenderThread(std::bind(&Player::onFrame, this, frame->shared_from_this()));
+    }   break;
+    case player::EOS: {
+        runOnRenderThread([this]() {
+            if (m_handler)
+                m_handler->onEOS();
+        });
+    }   break;
+    case player::ERROR: {
+        printf("Backend error: %s\n", static_cast<Error*>(data)->msg.c_str());
     }   break;
     default:
         break;

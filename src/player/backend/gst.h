@@ -7,6 +7,7 @@
 
 #include "gst/gst.h"
 #include <gst/app/gstappsink.h>
+#include <gst/pbutils/pbutils.h>
 
 
 namespace playos {
@@ -24,15 +25,17 @@ private:
     GstElement *vbin;
     GstElement *capsfilter;
     GstElement *vsink;
+    GstDiscoverer *discoverer;
     int busFd;
 
 private:
     virtual bool doInit() override;
 
-    bool _play() override;
-    bool _pause() override;
-    bool _stop() override;
-    int _seek(int pos) override;
+    bool onSetUri() override;
+    bool onPlay() override;
+    bool onPause() override;
+    bool onStop() override;
+    int onSeek(int64_t pos) override;
 
 private:
     void run(int events) override;
@@ -49,6 +52,9 @@ public:
         capsfilter(nullptr),
         vsink(nullptr) { }
     ~GstBackend();
+
+    void mediaDiscovered();
+    void mediaDiscoverFinished();
 
 public:
     static GstFlowReturn new_sample_callback(GstAppSink *appsink, gpointer udata);

@@ -14,7 +14,8 @@ static void signal_handler(int s)
 
 namespace playos {
 
-EventLoop::EventLoop(): m_running(false), m_thread(nullptr)
+EventLoop::EventLoop(): m_running(false),
+        m_thread(nullptr), m_mainTask(nullptr)
 {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -72,6 +73,10 @@ int EventLoop::_run()
             break;
         }
 
+        if (m_mainTask) {
+            m_mainTask->run(Task::EventNone);
+        }
+
         {
             m_mutex.lock();
             std::swap(tasksQueue, m_tasksQueue);
@@ -116,6 +121,11 @@ int EventLoop::stop()
     waitThread();
 
     return 0;
+}
+
+void EventLoop::setMainTask(Task *task)
+{
+    m_mainTask = task;
 }
 
 bool EventLoop::isRunOnCurrentThread()

@@ -4,6 +4,7 @@
 #include <chrono>
 #include <memory>
 #include <SDL.h>
+#include <vector>
 
 #include "eventloop/event_loop.h"
 #include "ui/director.h"
@@ -13,21 +14,30 @@ namespace playos {
 
 class Application: public Task, public player::ContextExecutor {
 public:
-    Application();
+    Application(int argc, char **argv);
     ~Application();
     bool init();
 
     int run();
 
+    std::string getResource(const std::string &res);
+
 private:
     bool initWindow();
-    void fillEvent(Event &ev, SDL_Event &event);
+    bool fillEvent(Event &ev, SDL_Event &event);
+    void scanMedia(const char * const path);
+    void tryAddMediaFile(const char *path);
 
 private:
     void run(int events) override;
     void exec(std::function<void ()> func) override;
 
 private:
+    int argc;
+    const char * const *argv;
+    std::string m_resourceDir;
+    std::vector<std::string> m_videoUrls;
+
     SDL_Window *window;
     SDL_GLContext glContext;
     SDL_Event sdlEvent;

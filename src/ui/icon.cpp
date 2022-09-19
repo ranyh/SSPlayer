@@ -1,6 +1,6 @@
 #include "icon.h"
 
-#define ICON_MAP_FILE "../font/icon-name.txt"
+#define ICON_MAP_FILE "/font/icon-name.txt"
 
 #include <fstream>
 #include <iostream>
@@ -14,11 +14,18 @@ Icon::Icon(Element *parent, const std::string &name):
         Text(parent, name),
         m_name(name)
 {
-    std::call_once(load, []() {
+    setAlignment(Text::AlignCenter);
+    setForceVCenter(true);
+    setFont(FontManager::instance().getFont("mdi"));
+}
+
+void Icon::init(const std::string &resourceDir)
+{
+    std::call_once(load, [&]() {
         std::ifstream ifs;
         std::string line;
 
-        ifs.open(ICON_MAP_FILE, std::ios_base::in);
+        ifs.open(resourceDir + ICON_MAP_FILE, std::ios_base::in);
         while (!ifs.eof()) {
             ifs >> line;
 
@@ -27,8 +34,6 @@ Icon::Icon(Element *parent, const std::string &name):
                 names[line.substr(0, index)] = std::strtol(line.substr(index+1).c_str(), nullptr, 16);
         }
     });
-
-    setFont(FontManager::instance().getFont("mdi"));
 }
 
 std::vector<Text::Char> Icon::createChars()

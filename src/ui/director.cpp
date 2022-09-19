@@ -63,7 +63,7 @@ void Director::onEvent(Event &event)
     }
 }
 
-void Director::update(int dt)
+void Director::update(float dt)
 {
     if (!m_scenes.empty()) {
         m_scenes.back()->update(m_context.get(), dt);

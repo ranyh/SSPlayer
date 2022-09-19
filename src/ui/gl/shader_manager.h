@@ -18,7 +18,7 @@ private:
 public:
     static ShaderManager &instance();
 
-    void init();
+    void init(const std::string &resourceDir);
 
     void registerShader(const std::string &name, std::shared_ptr<Shader> shader);
     std::shared_ptr<Shader> getShader(const std::string &name);

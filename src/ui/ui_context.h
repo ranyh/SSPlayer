@@ -4,16 +4,20 @@
 #include <glm/glm.hpp>
 #include "event.h"
 
+#include <string>
+
 
 namespace playos {
 
 class UIContext {
 public:
-    UIContext(int width, int height);
-    UIContext();
+    UIContext(const std::string &resourceDir, int width, int height);
+    UIContext(const std::string &resourceDir);
 
     void onMouseEvent(Event &event);
     void onWindowResize(int width, int height);
+    void scissor(int x, int y, int width, int height);
+    void resetScissor();
 
     glm::mat4 getProjectionMatrix() {
         return m_projMatrix;

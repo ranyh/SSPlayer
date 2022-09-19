@@ -17,6 +17,8 @@ public:
 
 class PlayerCallback {
 public:
+    virtual void onReady(std::shared_ptr<VideoInfo> info) = 0;
+    virtual void onEOS() = 0;
     virtual void onFrameInfo(std::shared_ptr<VideoFrameInfo> frameInfo) = 0;
     virtual void onFrame(std::shared_ptr<Frame> frame) = 0;
 };
@@ -41,6 +43,7 @@ public:
     void play();
     void pause();
     void stop();
+    void seek(int64_t i);
     bool isPlaying();
 
 private:
@@ -52,6 +55,7 @@ protected:
 
 private:
     std::shared_ptr<player::Backend> m_backend;
+    std::shared_ptr<player::VideoInfo> m_videoInfo;
 
     ContextExecutor *m_executor;
     PlayerCallback *m_handler;
