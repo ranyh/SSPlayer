@@ -13,11 +13,11 @@ EventLoopFactory &EventLoopFactory::instance()
 
 std::shared_ptr<EventLoop> EventLoopFactory::create()
 {
-#ifdef __linux__
-    return nullptr;
-#else
+// #ifdef __linux__
+//     return std::make_shared;
+// #else
     return std::make_shared<SelectEventLoop>();
-#endif
+// #endif
 }
 
 }

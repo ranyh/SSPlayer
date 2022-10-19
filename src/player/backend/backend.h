@@ -203,7 +203,7 @@ public:
     }
 
 public:
-    std::vector<const Tag> tags;
+    std::vector<Tag> tags;
     uint64_t duration;
     bool seekable;
 };

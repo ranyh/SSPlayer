@@ -40,6 +40,7 @@ pkg_check_modules(SDL2 sdl2)
 pkg_check_modules(GST REQUIRED gstreamer-1.0)
 pkg_check_modules(GST_APP REQUIRED gstreamer-app-1.0)
 pkg_check_modules(GST_PBUTILS REQUIRED gstreamer-pbutils-1.0)
+pkg_check_modules(GST_ALLOCATORS REQUIRED gstreamer-allocators-1.0)
 
 include_directories(${SDL2_INCLUDE_DIRS}
     ${GST_INCLUDE_DIRS}
@@ -48,5 +49,5 @@ include_directories(${SDL2_INCLUDE_DIRS}
 
 add_executable(player ${SRC})
 target_link_libraries(player stb_image glad
-        ${SDL2_LINK_LIBRARIES} ${GST_LINK_LIBRARIES} ${GST_APP_LINK_LIBRARIES}
-        ${FREE_TYPE2_LINK_LIBRARIES} ${GST_PBUTILS_LINK_LIBRARIES})
+        ${SDL2_LIBRARIES} ${GST_LIBRARIES} ${GST_APP_LIBRARIES}
+        ${FREE_TYPE2_LIBRARIES} ${GST_PBUTILS_LIBRARIES} ${GST_ALLOCATORS_LIBRARIES})

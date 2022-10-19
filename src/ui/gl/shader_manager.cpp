@@ -11,9 +11,27 @@ ShaderManager &ShaderManager::instance()
 
 void ShaderManager::init(const std::string &resourceDir)
 {
-    registerShader("default", Shader::fromFile(resourceDir + "/shaders/3d.vs", resourceDir + "/shaders/base.fs"));
-    registerShader("font", Shader::fromFile(resourceDir + "/shaders/3d.vs", resourceDir + "/shaders/font.fs"));
-    registerShader("primitive", Shader::fromFile(resourceDir + "/shaders/3d.vs", resourceDir + "/shaders/primitive.fs"));
+#ifdef __APPLE__
+    registerShader("default", Shader::fromFile(
+            resourceDir + "/shaders/GL3.3/3d.vs",
+            resourceDir + "/shaders/GL3.3/base.fs"));
+    registerShader("font", Shader::fromFile(
+            resourceDir + "/shaders/GL3.3/3d.vs",
+            resourceDir + "/shaders/GL3.3/font.fs"));
+    registerShader("primitive", Shader::fromFile(
+            resourceDir + "/shaders/GL3.3/3d.vs",
+            resourceDir + "/shaders/GL3.3/primitive.fs"));
+#else
+    registerShader("default", Shader::fromFile(
+            resourceDir + "/shaders/ES2.0/3d.vs",
+            resourceDir + "/shaders/ES2.0/base.fs"));
+    registerShader("font", Shader::fromFile(
+            resourceDir + "/shaders/ES2.0/3d.vs",
+            resourceDir + "/shaders/ES2.0/font.fs"));
+    registerShader("primitive", Shader::fromFile(
+            resourceDir + "/shaders/ES2.0/3d.vs",
+            resourceDir + "/shaders/ES2.0/primitive.fs"));
+#endif
 }
 
 void ShaderManager::registerShader(const std::string &name, std::shared_ptr<Shader> shader)

@@ -2,6 +2,9 @@
 
 #include <glad/glad.h>
 
+#include <stdio.h>
+
+
 namespace playos {
 
 static float vertices[] = {
@@ -21,7 +24,16 @@ const Buffers * Buffers::s_rectangle = nullptr;
 
 Buffers::Buffers(): EBO(0)
 {
-    glGenVertexArrays(1, &VAO);
+    if (glGenVertexArrays)
+        glGenVertexArrays(1, &VAO);
+    else if (glGenVertexArraysOES)
+        glGenVertexArraysOES(1, &VAO);
+    else {
+        printf("Not support vertex array object\n");
+        exit(-1);
+    }
+
+
     glGenBuffers(1, &VBO);
 }
 
@@ -36,7 +48,11 @@ Buffers::~Buffers()
 
 void Buffers::loadVBO(float *data, size_t size)
 {
-    glBindVertexArray(VAO);
+    if (glBindVertexArray) {
+        glBindVertexArray(VAO);
+    } else {
+        glBindVertexArrayOES(VAO);
+    }
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
@@ -47,7 +63,12 @@ void Buffers::loadEBO(unsigned int *data, size_t size)
     if (EBO != 0)
         glDeleteBuffers(1, &EBO);
 
-    glBindVertexArray(VAO);
+    if (glBindVertexArray) {
+        glBindVertexArray(VAO);
+    } else {
+        glBindVertexArrayOES(VAO);
+    }
+
     glGenBuffers(1, &EBO);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
@@ -56,7 +77,11 @@ void Buffers::loadEBO(unsigned int *data, size_t size)
 
 void Buffers::vertexAttribPointer(int id, size_t lineSize, size_t offset, size_t size)
 {
-    glBindVertexArray(VAO);
+    if (glBindVertexArray) {
+        glBindVertexArray(VAO);
+    } else {
+        glBindVertexArrayOES(VAO);
+    }
 
     glVertexAttribPointer(id, size, GL_FLOAT, GL_FALSE,
             lineSize * sizeof(float), (void*)(offset * sizeof(float)));
@@ -65,7 +90,11 @@ void Buffers::vertexAttribPointer(int id, size_t lineSize, size_t offset, size_t
 
 void Buffers::use() const
 {
-    glBindVertexArray(VAO);
+    if (glBindVertexArray) {
+        glBindVertexArray(VAO);
+    } else {
+        glBindVertexArrayOES(VAO);
+    }
 
     if (EBO != 0)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);

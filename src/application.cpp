@@ -91,15 +91,21 @@ bool Application::init()
 bool Application::initWindow()
 {
     if (SDL_Init(SDL_INIT_EVENTS | SDL_INIT_VIDEO | SDL_INIT_TIMER) < 0) {
-        printf("Failed to init SDL2\n");
+        printf("Failed to init SDL2: %s, %s\n", SDL_GetError());
 
         return false;
     }
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+#ifdef __APPLE__
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#else
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
 
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 2);
@@ -122,7 +128,11 @@ bool Application::initWindow()
         return false;
     }
 
+#ifdef __APPLE__
     if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) {
+#else
+    if (!gladLoadGLES2Loader((GLADloadproc)SDL_GL_GetProcAddress)) {
+#endif
         std::cout << "Failed to initialize GLAD" << std::endl;
         return false;
     }
@@ -166,8 +176,13 @@ void Application::scanMedia(const char * const path)
                 continue;
             }
 
+#ifdef _DIRENT_HAVE_D_NAMLEN
+            int namlen = dp->d_namlen;
+#else
+            int namlen = _D_EXACT_NAMLEN(dp);
+#endif
             _path[pathLen + 1] = '\0';
-            if (pathLen + 1 + dp->d_namlen >= MAX_PATH) {
+            if (pathLen + 1 + namlen >= MAX_PATH) {
                 continue;
             }
 
@@ -194,7 +209,9 @@ void Application::tryAddMediaFile(const char *path)
 
     for (int i = 0; i < s_supportedExtCount; ++i) {
         if (strcmp(dot+1, s_supportedExts[i]) == 0) {
-            m_videoUrls.emplace_back(path, strlen(path));
+            char _path[256];
+            realpath(path, _path);
+            m_videoUrls.emplace_back(_path, strlen(_path));
         }
     }
 }
