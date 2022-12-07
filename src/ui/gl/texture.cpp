@@ -3,7 +3,8 @@
 #include <stdio.h>
 namespace playos {
 
-Texture::Texture(int type): type(type), id(0)
+Texture::Texture(int type): type(type), id(0),
+        m_width(0), m_height(0)
 {
     if (type == GL_TEXTURE_2D) {
         glGenTextures(1, &id);
@@ -40,14 +41,19 @@ void Texture::load(void *data, int width, int height, int pixelFmt)
 {
     use();
 
-    glTexImage2D(type, 0, pixelFmt, width, height, 0,
-            pixelFmt, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(type);
-    
-    glBindTexture(GL_TEXTURE_2D, 0);
+    if (m_width == width && m_height == height && m_pixelFmt == pixelFmt) {
+        glTexSubImage2D(type, 0, 0, 0, width, height, pixelFmt, GL_UNSIGNED_BYTE, data);
+    } else {
+        glTexImage2D(type, 0, pixelFmt, width, height, 0,
+                pixelFmt, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(type);
 
-    m_width = width;
-    m_height = height;
+        m_width = width;
+        m_height = height;
+        m_pixelFmt = pixelFmt;
+    }
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void Texture::use()

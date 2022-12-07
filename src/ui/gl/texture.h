@@ -29,6 +29,7 @@ private:
     int type;
     GLuint id;
     int m_width, m_height;
+    int m_pixelFmt;
 };
 
 }

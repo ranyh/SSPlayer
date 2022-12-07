@@ -21,6 +21,12 @@ void ShaderManager::init(const std::string &resourceDir)
     registerShader("primitive", Shader::fromFile(
             resourceDir + "/shaders/GL3.3/3d.vs",
             resourceDir + "/shaders/GL3.3/primitive.fs"));
+    registerShader("yuv", Shader::fromFile(
+            resourceDir + "/shaders/GL3.3/3d.vs",
+            resourceDir + "/shaders/GL3.3/yuv_planar.fs"));
+    registerShader("nv12", Shader::fromFile(
+            resourceDir + "/shaders/GL3.3/3d.vs",
+            resourceDir + "/shaders/GL3.3/nv12.fs"));
 #else
     registerShader("default", Shader::fromFile(
             resourceDir + "/shaders/ES2.0/3d.vs",
@@ -31,6 +37,15 @@ void ShaderManager::init(const std::string &resourceDir)
     registerShader("primitive", Shader::fromFile(
             resourceDir + "/shaders/ES2.0/3d.vs",
             resourceDir + "/shaders/ES2.0/primitive.fs"));
+    registerShader("yuv", Shader::fromFile(
+            resourceDir + "/shaders/ES2.0/3d.vs",
+            resourceDir + "/shaders/ES2.0/yuv_planar.fs"));
+    registerShader("nv12", Shader::fromFile(
+            resourceDir + "/shaders/ES2.0/3d.vs",
+            resourceDir + "/shaders/ES2.0/nv12.fs"));
+    registerShader("yuv_ext", Shader::fromFile(
+            resourceDir + "/shaders/ES2.0/3d.vs",
+            resourceDir + "/shaders/ES2.0/yuv_ext.fs"));
 #endif
 }
 

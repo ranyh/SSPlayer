@@ -114,7 +114,7 @@ void Controller::onUpdate(UIContext *context, float dt)
     }
 
     char time[24];
-    sprintf(time, "%02.0f:%02.0f/%02.0f:%02.0f",
+    snprintf(time, 24, "%02.0f:%02.0f/%02.0f:%02.0f",
             m_duration/(1000.0f*60.0f), m_duration%(1000*60)/1000.0f,
             m_progress/(1000.0f*60.0f), m_progress%(1000*60)/1000.0f);
     m_time.setText(time);

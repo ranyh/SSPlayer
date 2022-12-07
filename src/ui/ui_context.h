@@ -4,10 +4,30 @@
 #include <glm/glm.hpp>
 #include "event.h"
 
+#ifdef __APPLE__
+typedef void * EGLDisplay;
+#else
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#endif
+
 #include <string>
 
 
 namespace playos {
+
+class ResourceContext {
+public:
+    virtual ~ResourceContext() {}
+    virtual int makeCurrent() = 0;
+    virtual int clearCurrent() = 0;
+    virtual EGLDisplay getEGLDisplay() = 0;
+};
+
+class ResourceContextCreator {
+public:
+    virtual ResourceContext *createResourceContext() = 0;
+};
 
 class UIContext {
 public:
@@ -18,6 +38,8 @@ public:
     void onWindowResize(int width, int height);
     void scissor(int x, int y, int width, int height);
     void resetScissor();
+
+
 
     glm::mat4 getProjectionMatrix() {
         return m_projMatrix;
@@ -39,6 +61,18 @@ public:
         return m_height;
     }
 
+    void setResourceContextCreator(ResourceContextCreator *creator) {
+        m_resourceContextCreator = creator;
+    }
+
+    ResourceContext *createResourceContext() {
+        if (m_resourceContextCreator) {
+            return m_resourceContextCreator->createResourceContext();
+        }
+
+        return nullptr;
+    }
+
 protected:
     virtual glm::mat4 createProjectionMatrix();
     virtual glm::mat4 createViewMatrix();
@@ -51,6 +85,7 @@ private:
     glm::mat4 m_viewMatrix;
     glm::mat4 m_matrix;
 
+    ResourceContextCreator *m_resourceContextCreator;
 };
 
 }

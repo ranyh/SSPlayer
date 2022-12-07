@@ -2,19 +2,25 @@
 
 #include "application.h"
 #include <iostream>
+#include <condition_variable>
 
 
 namespace playos {
 
+static const char *playerBackend = "ffmpeg";
+
 VideoPlayer::VideoPlayer(Application *app):
-        m_app(app), m_texture(nullptr)
+        m_app(app)
 {
+    const char *b = getenv("SS_PLAYER_BACKEND");
+    if (b) {
+        playerBackend = b;
+    }
 }
 
 VideoPlayer::~VideoPlayer()
 {
     m_player->stop();
-    m_player->setExecutor(nullptr);
     m_player->setHandler(nullptr);
 }
 
@@ -41,8 +47,9 @@ void VideoPlayer::onEvent(Event &event)
 void VideoPlayer::setPlayList(std::vector<std::string> &playList)
 {
     m_playList = std::move(playList);
-    if (m_controller)
+    if (m_controller) {
         m_controller->setPlayList(&m_playList);
+    }
 
     // TODO:
     if (m_playlistView) {
@@ -51,19 +58,28 @@ void VideoPlayer::setPlayList(std::vector<std::string> &playList)
     }
 }
 
+void VideoPlayer::onAudioCallback(uint8_t **stream, int len)
+{
+    player::AudioFrame *frame = m_player->getAudioFrame();
+    if (frame) {
+        memcpy(stream[0], frame->data[0], len);
+        m_player->putFrame(frame);
+    } else {
+        memset(stream[0], 0, len);
+    }
+}
+
 void VideoPlayer::onInit(UIContext *context)
 {
     int dWidth = context->drawableWidth();
     int dHeight = context->drawableHeight();
 
-    m_player = std::unique_ptr<player::Player>(new player::Player(m_app));
-    m_videoView = std::unique_ptr<VideoView>(new VideoView(this));
+    m_player = std::unique_ptr<player::Player>(new player::Player(playerBackend));
+    m_videoView = std::unique_ptr<VideoView>(new VideoView(context->createResourceContext(), this));
     m_controller = std::unique_ptr<Controller>(new Controller(this));
-    m_texture = std::make_shared<Texture>();
     m_playlistView = std::unique_ptr<Playlist>(new Playlist(this));
     m_playlistView->setVisibility(false);
 
-    m_videoView->setTexture(m_texture);
     m_videoView->setSize(dWidth, dHeight);
     m_player->setHandler(this);
     m_controller->setListener(this);
@@ -128,16 +144,40 @@ void VideoPlayer::onEOS()
 void VideoPlayer::onFrameInfo(std::shared_ptr<player::VideoFrameInfo> frameInfo)
 {
     m_frameInfo = frameInfo;
+    m_app->exec([&]() {
+        m_videoView->prepareTextures(m_frameInfo);
+
+        m_audioSink.init(std::bind(&VideoPlayer::onAudioCallback, this, std::placeholders::_1, std::placeholders::_2));
+        m_audioSink.start();
+    });
 }
 
-void VideoPlayer::onFrame(std::shared_ptr<player::Frame> frame)
+void VideoPlayer::onFrame(player::Frame *frame)
 {
-    if (frame->vFrame->map(player::VideoFrame::ReadOnly)) {
-        m_texture->load(frame->vFrame->data(), m_frameInfo->width, m_frameInfo->height);
-        frame->vFrame->unmap();
-    }
+    if (frame->type == player::Frame::Video) {
+        static std::mutex mux;
+        static std::condition_variable cv;
+        bool finish = false;
 
-    m_controller->setProgress(frame->current);
+        m_app->exec([&, frame]() {
+            player::VideoFrame *vFrame = (player::VideoFrame *)(frame);
+            if (vFrame->map(player::VideoFrame::ReadOnly)) {
+                m_videoView->load(vFrame);
+                vFrame->unmap();
+            }
+            m_controller->setProgress(frame->duration);
+
+            finish = true;
+            cv.notify_all();
+        });
+
+        std::unique_lock<std::mutex> lk(mux);
+        cv.wait(lk, [&]{return finish;});
+    } else if (frame->type == player::Frame::Audio) {
+        player::AudioFrame *aFrame = (player::AudioFrame *)(frame);
+        // TODO:
+        m_audioSink.queue((const uint8_t **)aFrame->data, aFrame->samples * 2 * 2);
+    }
 }
 
 }

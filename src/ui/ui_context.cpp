@@ -15,7 +15,8 @@ UIContext::UIContext(const std::string &resourceDir, int width, int height):
         m_width(width), m_height(height),
         m_projMatrix(createProjectionMatrix()),
         m_viewMatrix(createViewMatrix()),
-        m_matrix(createMatrix())
+        m_matrix(createMatrix()),
+        m_resourceContextCreator(nullptr)
 {
     Buffers::initPrimary();
 

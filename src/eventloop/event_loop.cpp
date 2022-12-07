@@ -1,24 +1,14 @@
 #include "event_loop.h"
 
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
-
-static volatile int sig;
-
-static void signal_handler(int s)
-{
-    sig = s;
-}
 
 namespace playos {
 
 EventLoop::EventLoop(): m_running(false),
         m_thread(nullptr), m_mainTask(nullptr)
 {
-    signal(SIGINT, signal_handler);
-    signal(SIGTERM, signal_handler);
 }
 
 EventLoop::~EventLoop()
@@ -69,10 +59,6 @@ int EventLoop::_run()
     m_threadId = std::this_thread::get_id();
 
     while (m_running.load()) {
-        if (sig == SIGINT || sig == SIGTERM) {
-            break;
-        }
-
         if (m_mainTask) {
             m_mainTask->run(Task::EventNone);
         }
@@ -95,6 +81,17 @@ int EventLoop::_run()
         }
     }
     m_running = false;
+
+    // flush all tasks
+    if (m_mainTask) {
+        m_mainTask->run(Task::EventEnd);
+    }
+
+    while (!m_tasksQueue.empty()) {
+        task = m_tasksQueue.front();
+        task->run(Task::EventEnd);
+        m_tasksQueue.pop_front();
+    }
 
     return ret;
 }

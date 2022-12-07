@@ -1,5 +1,7 @@
 .cache/
 .vscode/
-build/
+build*/
 .DS_Store
 *.code-workspace
+.vscode-ctags
+

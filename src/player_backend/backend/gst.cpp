@@ -23,72 +23,6 @@ typedef enum
     GST_PLAY_FLAG_TEXT = (1 << 2)   /* We want subtitle output */
 } GstPlayFlags;
 
-class GstVideoFrame: public VideoFrame {
-public:
-    GstVideoFrame(GstBuffer *buffer): m_buffer(buffer), m_maped(false) {
-        gst_buffer_ref(buffer);
-    }
-    ~GstVideoFrame() {
-        if (m_maped) {
-            unmap();
-        }
-        gst_buffer_unref(m_buffer);
-    }
-
-    bool map(Mode mode) {
-        if (m_maped) {
-            return true;
-        }
-
-        GstMapFlags m = GST_MAP_READ;
-        switch (mode) {
-        case ReadOnly:
-            m = GST_MAP_READ;
-            break;
-        case WriteOnly:
-            m = GST_MAP_WRITE;
-            break;
-        case ReadWrite:
-            m = GST_MAP_FLAG_LAST;
-            break;
-        }
-
-        if (!gst_buffer_map(m_buffer, &m_map, m)) {
-            return false;
-        }
-
-        m_maped = true;
-        return true;
-    };
-
-    bool unmap() {
-        if (m_maped) {
-            gst_buffer_unmap(m_buffer, &m_map);
-            m_maped = false;
-        }
-
-        return true;
-    };
-
-    size_t loadData(void *data, size_t size) {
-        return copyData(data, m_map.data, size);
-    }
-
-    void *data() {
-        return m_map.data;
-    }
-
-    size_t size() {
-        return m_map.size;
-    }
-
-private:
-    GstBuffer *m_buffer;
-    GstMapInfo m_map;
-    bool m_maped;
-};
-
-
 gboolean GstBackend::handle_message(GstMessage *msg)
 {
     GError *err;
@@ -103,7 +37,7 @@ gboolean GstBackend::handle_message(GstMessage *msg)
         g_free(debug_info);
         break;
     case GST_MESSAGE_EOS:
-        m_handler->playBackendCallback(CallbackReason::EOS, nullptr);
+        m_handler->onEOS();
         break;
     case GST_MESSAGE_STATE_CHANGED: {
         // GstState old_state, new_state, pending_state;
@@ -146,12 +80,12 @@ GstFlowReturn GstBackend::new_sample_callback(GstAppSink *appsink, gpointer udat
     }
 
     buffer = gst_sample_get_buffer(sample);
-    auto f = Frame::create(std::make_shared<GstVideoFrame>(buffer));
+    auto f = new GstVideoFrame(backend->m_videoFrameInfo, buffer);
     gst_sample_unref(sample);
 
-    gst_element_query_position(backend->playbin, GST_FORMAT_TIME, &f->current);
-    f->current /= 1000000;
-    backend->m_handler->playBackendCallback(CallbackReason::FRAME, f.get());
+    gst_element_query_position(backend->playbin, GST_FORMAT_TIME, &f->duration);
+    f->duration /= 1000000;
+    backend->m_handler->onFrame(f);
 
     return GST_FLOW_OK;
 }
@@ -181,9 +115,8 @@ GstFlowReturn GstBackend::new_preroll_callback (GstAppSink *appsink, gpointer ud
         gst_structure_get_int(capsStruct, "height", &height);
         const gchar *format = gst_structure_get_string(capsStruct, "format");
 
-        auto info = VideoFrameInfo::create(width, height, RGB);
-        StateChanged state(PLAYING, info.get());
-        backend->m_handler->playBackendCallback(CallbackReason::STATE_CHANGED, &state);
+        backend->m_videoFrameInfo = VideoFrameInfo::create(width, height, RGB);
+        backend->m_handler->onReady(backend->m_videoInfo, backend->m_videoFrameInfo);
     }
 
     gst_caps_unref(caps);
@@ -231,10 +164,6 @@ bool GstBackend::doInit()
 
     caps = gst_caps_new_simple("video/x-raw",
             "format", G_TYPE_STRING, "RGB",
-            // "framerate", GST_TYPE_FRACTION, pSpr->info.fps, 1,
-            // "pixel-aspect-ratio", GST_TYPE_FRACTION, 1, 1,
-            // "width", G_TYPE_INT, 320,
-            // "height", G_TYPE_INT, 240,
             NULL);
     g_object_set(capsfilter, "caps", caps, NULL); 
 
@@ -261,7 +190,7 @@ bool GstBackend::doInit()
     gst_bus_get_pollfd(bus, &busPoolFd);
 
     busFd = busPoolFd.fd;
-    eventLoop()->addFdWatch(busFd, this, Task::EventIn);
+    m_handler->getEventLoop()->addFdWatch(busFd, this, Task::EventIn);
 
     g_object_set(GST_OBJECT(playbin), "video-sink", vbin, NULL);
     g_object_set(vsink, "emit-signals", TRUE, NULL);
@@ -280,26 +209,21 @@ bool GstBackend::doInit()
 
 GstBackend::~GstBackend()
 {
-    eventLoop()->removeFdWatch(busFd);
-    terminalEventLoop();
-
-    onStop();
+    m_handler->getEventLoop()->removeFdWatch(busFd);
 
     GstState state;
     gst_element_get_state(playbin, &state, NULL, g_get_monotonic_time () + 100);
 
-    // flush message
-    run(0);
     g_object_unref (discoverer);
     gst_object_unref(bus);
     gst_object_unref(playbin);
 }
 
-bool GstBackend::onSetUri()
+bool GstBackend::initPlay()
 {
     GError *err = nullptr;
     std::string uri = m_uri;
-    if (m_uri.find("://") == m_uri.npos) {
+    if (uri.find("://") == uri.npos) {
         uri = "file://" + uri;
     }
 
@@ -352,10 +276,10 @@ bool GstBackend::onSetUri()
             return false;
         }
 
-        auto vinfo = VideoInfo::create();
-        vinfo->duration = gst_discoverer_info_get_duration(info)/1000000;
-        vinfo->seekable = gst_discoverer_info_get_seekable(info);
-        vinfo->tags.emplace_back();
+        m_videoInfo = VideoInfo::create();
+        m_videoInfo->duration = gst_discoverer_info_get_duration(info)/1000000;
+        m_videoInfo->seekable = gst_discoverer_info_get_seekable(info);
+        m_videoInfo->tags.emplace_back();
 
         tags = gst_discoverer_info_get_tags (info);
         if (tags) {
@@ -403,19 +327,18 @@ bool GstBackend::onSetUri()
                 g_free (str);
 
                 g_value_unset (&val);
-            }, (void *)&vinfo->tags[0]);
+            }, (void *)&m_videoInfo->tags[0]);
         }
-
-        m_handler->playBackendCallback(CallbackReason::READY, vinfo.get());
     }
 
     return true;
 }
 
-bool GstBackend::onPlay()
+bool GstBackend::play()
 {
     GstStateChangeReturn ret;
 
+    initPlay();
     ret = gst_element_set_state(playbin, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         onError("Unable to set the pipeline to the playing state.\n");
@@ -425,35 +348,35 @@ bool GstBackend::onPlay()
     return true;
 }
 
-bool GstBackend::onPause()
+bool GstBackend::pause()
 {
     return gst_element_set_state(playbin, GST_STATE_PAUSED) != GST_STATE_CHANGE_FAILURE;
 }
 
-bool GstBackend::onStop()
+bool GstBackend::stop()
 {
     gst_element_set_state(playbin, GST_STATE_NULL);
     return true;
 }
 
-int GstBackend::onSeek(int64_t pos)
+int GstBackend::seek(int64_t pos)
 {
     gst_element_seek_simple(playbin, GST_FORMAT_TIME,
             GstSeekFlags(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE), pos);
     return 0;
 }
 
-void GstBackend::run(int events)
+void GstBackend::putFrame(Frame *frame)
 {
-    if (isEnd(events)) {
-        onStop();
-    } else {
-        GstMessage *msg = nullptr;
-        while ((msg = gst_bus_pop(bus)) != nullptr) {
-            handle_message(msg);
-        }
-    }
+    delete frame;
+}
 
+void GstBackend::run(int event)
+{
+    GstMessage *msg = nullptr;
+    while ((msg = gst_bus_pop(bus)) != nullptr) {
+        handle_message(msg);
+    }
 }
 
 }

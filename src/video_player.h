@@ -4,8 +4,10 @@
 #include "ui/controller.h"
 #include "ui/scene.h"
 #include "ui/video_view.h"
-#include "player/player.h"
+#include "player_backend/player.h"
 #include "ui/playlist.h"
+#include "sound/audio_sink.h"
+
 
 namespace playos {
 
@@ -21,6 +23,7 @@ public:
 
     // Set and token the playList owership
     void setPlayList(std::vector<std::string> &playList);
+    void onAudioCallback(uint8_t **stream, int len);
 
 protected:
     void onInit(UIContext *context) override;
@@ -39,13 +42,13 @@ protected:
     void onReady(std::shared_ptr<player::VideoInfo> info) override;
     void onEOS() override;
     void onFrameInfo(std::shared_ptr<player::VideoFrameInfo> frameInfo) override;
-    void onFrame(std::shared_ptr<player::Frame> frame) override;
+    void onFrame(player::Frame *frame) override;
 
 private:
     Application *m_app;
-    std::shared_ptr<Texture> m_texture;
     std::shared_ptr<player::VideoFrameInfo> m_frameInfo;
     std::vector<std::string> m_playList;
+    AudioSink m_audioSink;
 
     std::unique_ptr<VideoView> m_videoView;
     std::unique_ptr<Controller> m_controller;

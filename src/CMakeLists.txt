@@ -5,13 +5,6 @@ set(SRC main.cpp
     eventloop/event_loop.cpp
     eventloop/select_event_loop.cpp
     eventloop/event_loop_factory.cpp
-    player/player.h
-    player/player.cpp
-    player/backend/backend.h
-    player/backend/backend.cpp
-    player/backend/frame.cpp
-    player/backend/gst.h
-    player/backend/gst.cpp
     ui/director.cpp
     ui/ui_context.cpp
     ui/group.cpp
@@ -32,22 +25,24 @@ set(SRC main.cpp
     ui/gl/shader_manager.cpp
     ui/gl/texture.cpp
     ui/gl/buffers.cpp
+    utils/time.cpp
+    sound/audio_sink.cpp
     )
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FREE_TYPE2 freetype2 REQUIRED)
 pkg_check_modules(SDL2 sdl2)
-pkg_check_modules(GST REQUIRED gstreamer-1.0)
-pkg_check_modules(GST_APP REQUIRED gstreamer-app-1.0)
-pkg_check_modules(GST_PBUTILS REQUIRED gstreamer-pbutils-1.0)
-pkg_check_modules(GST_ALLOCATORS REQUIRED gstreamer-allocators-1.0)
+pkg_check_modules(EGL egl)
 
-include_directories(${SDL2_INCLUDE_DIRS}
-    ${GST_INCLUDE_DIRS}
-    ${GST_APP_INCLUDE_DIRS}
-    ${FREE_TYPE2_INCLUDE_DIRS})
+include_directories(
+        ${SDL2_INCLUDE_DIRS}
+        ${EGL_INCLUDE_DIRS}
+        ${FREE_TYPE2_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_subdirectory(player_backend)
 
 add_executable(player ${SRC})
-target_link_libraries(player stb_image glad
-        ${SDL2_LIBRARIES} ${GST_LIBRARIES} ${GST_APP_LIBRARIES}
-        ${FREE_TYPE2_LIBRARIES} ${GST_PBUTILS_LIBRARIES} ${GST_ALLOCATORS_LIBRARIES})
+target_link_libraries(player PRIVATE stb_image glad player_backend spdlog::spdlog_header_only
+        ${SDL2_LIBRARIES} ${FREE_TYPE2_LIBRARIES} ${EGL_LIBRARIES})
+target_link_directories(player PRIVATE ${SDL2_LIBRARY_DIRS})
