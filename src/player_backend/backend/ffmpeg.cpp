@@ -22,7 +22,7 @@ extern "C" {
 namespace playos {
 namespace player {
 
-static const char *hwdev = "drm";
+static const char *defaultHWdev = "drm";
 
 static std::unordered_map<AVPixelFormat, PixelFormat> s_pixelFormatMap = {
     { AV_PIX_FMT_YUV420P, YUV420P },
@@ -228,7 +228,7 @@ FFmpegBackend::FFmpegBackend():
         m_videoDecCtx(nullptr), m_audioDecCtx(nullptr),
         m_swsContext(nullptr),
         m_videoStreamIdx(-1), m_audioStreamIdx(-1),
-        m_state(CREATED)
+        m_state(CREATED), m_pixFmt(AV_PIX_FMT_NONE)
 {
     const char *hw = getenv("SS_PLAYER_HWACCEL");
     if (hw != NULL) {
@@ -295,104 +295,104 @@ int FFmpegBackend::openCodecContext(int *stream_idx, AVCodecContext **dec_ctx, e
     int ret, stream_index;
     AVStream *st;
     const AVCodec *dec = NULL;
-    bool hwDec = false;
+    int err = 0;
  
     ret = av_find_best_stream(m_fmtCtx, type, -1, -1, &dec, 0);
     if (ret < 0) {
         spdlog::warn("Could not find {} stream in input file '{}'",
                 av_get_media_type_string(type), m_uri);
         return ret;
-    } else {
-        stream_index = ret;
-        st = m_fmtCtx->streams[stream_index];
+    }
 
-        if (type == AVMEDIA_TYPE_VIDEO && m_enableHWAccel) {
-            const char *decoder = nullptr;
-#ifdef __linux__
-            if (st->codecpar->codec_id == AV_CODEC_ID_H264) {
-                decoder = "h264_v4l2m2m";
-            } else if (st->codecpar->codec_id == AV_CODEC_ID_H265) {
-                decoder = "h265_v4l2m2m";
-            }
+    stream_index = ret;
+    st = m_fmtCtx->streams[stream_index];
+
+    if (dec == nullptr) {
+        dec = avcodec_find_decoder(st->codecpar->codec_id);
+        if (!dec) {
+            spdlog::error("Failed to find {} codec", av_get_media_type_string(type));
+            return AVERROR(EINVAL);
+        }
+    }
+
+    if (type == AVMEDIA_TYPE_VIDEO && m_enableHWAccel) {
+        const char *decoder = nullptr;
+#if defined(__linux__) && defined(__aarch64__)
+        if (st->codecpar->codec_id == AV_CODEC_ID_H264) {
+            decoder = "h264_v4l2m2m";
+        } else if (st->codecpar->codec_id == AV_CODEC_ID_H265) {
+            decoder = "h265_v4l2m2m";
+        }
 #endif
 
-            if (decoder != nullptr) {
-                if ((dec = avcodec_find_decoder_by_name(decoder)) == NULL) {
-                    spdlog::error("Cannot find the v4l2m2m decoder");
-                } else {
-                    m_pixFmt = AV_PIX_FMT_DRM_PRIME;
-                    hwDec = true;
-                }
-            }
-
-            if (dec == nullptr) {
-                for (int i = 0;; i++) {
-                    const AVCodecHWConfig *config = avcodec_get_hw_config(dec, i);
-                    if (!config) {
-                        spdlog::error("Decoder {} does not support device type {}.",
-                                dec->name, av_hwdevice_get_type_name(m_hwType));
-                        break;
-                    }
-                    if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
-                        config->device_type == m_hwType) {
-                        m_pixFmt = config->pix_fmt;
-                        hwDec = true;
-                        break;
-                    }
-                }
+        if (decoder != nullptr) {
+            if ((dec = avcodec_find_decoder_by_name(decoder)) == NULL) {
+                spdlog::error("Cannot find the v4l2m2m decoder");
+            } else {
+                m_pixFmt = AV_PIX_FMT_DRM_PRIME;
             }
         }
-
-        if (dec == nullptr) {
-            /* find decoder for the stream */
-            dec = avcodec_find_decoder(st->codecpar->codec_id);
-            if (!dec) {
-                spdlog::error("Failed to find {} codec", av_get_media_type_string(type));
-                return AVERROR(EINVAL);
-            }
-        }
-
-        /* Allocate a codec context for the decoder */
-        *dec_ctx = avcodec_alloc_context3(dec);
-        if (!*dec_ctx) {
-            spdlog::error("Failed to allocate the {} codec context",
-                    av_get_media_type_string(type));
-            return AVERROR(ENOMEM);
-        }
- 
-        /* Copy codec parameters from input stream to output codec context */
-        if ((ret = avcodec_parameters_to_context(*dec_ctx, st->codecpar)) < 0) {
-            spdlog::error("Failed to copy {} codec parameters to decoder context",
-                    av_get_media_type_string(type));
-            return ret;
-        }
-
-        if (type == AVMEDIA_TYPE_VIDEO && hwDec) {
-            // (*dec_ctx)->pix_fmt = AV_PIX_FMT_NV12;
-            (*dec_ctx)->pix_fmt = m_pixFmt;
-
-            int err;
-            if ((err = av_hwdevice_ctx_create(&(*dec_ctx)->hw_device_ctx, m_hwType,
-                                            "/dev/dri/card1", NULL, 0)) < 0) {
-                spdlog::error("Failed to create specified HW device: {}.", av_err2str(err));
-                return err;
-            }
-
-            (*dec_ctx)->opaque = this;
-            (*dec_ctx)->get_format = [](AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts)
-                    -> AVPixelFormat {
-                auto ff = reinterpret_cast<FFmpegBackend *>(ctx->opaque);
-                return ff->getHWFmt(ctx, pix_fmts);
-            };
-        }
-
-        /* Init the decoders */
-        if ((ret = avcodec_open2(*dec_ctx, dec, NULL)) < 0) {
-            spdlog::error("Failed to open {} codec", av_get_media_type_string(type));
-            return ret;
-        }
-        *stream_idx = stream_index;
     }
+
+    /* Allocate a codec context for the decoder */
+    *dec_ctx = avcodec_alloc_context3(dec);
+    if (!*dec_ctx) {
+        spdlog::error("Failed to allocate the {} codec context",
+                av_get_media_type_string(type));
+        return AVERROR(ENOMEM);
+    }
+
+    /* Copy codec parameters from input stream to output codec context */
+    if ((ret = avcodec_parameters_to_context(*dec_ctx, st->codecpar)) < 0) {
+        spdlog::error("Failed to copy {} codec parameters to decoder context",
+                av_get_media_type_string(type));
+        return ret;
+    }
+
+    if (type == AVMEDIA_TYPE_VIDEO && m_enableHWAccel) {
+        for (int i = 0; ; i++) {
+            const AVCodecHWConfig *config = avcodec_get_hw_config(dec, i);
+            if (!config) {
+                spdlog::error("Decoder {} does not support device type {}.",
+                        dec->name, av_hwdevice_get_type_name(m_hwType));
+                break;
+            }
+
+            if (config->methods & AV_CODEC_HW_CONFIG_METHOD_INTERNAL) {
+                if (m_pixFmt != AV_PIX_FMT_NONE) {
+                    (*dec_ctx)->pix_fmt = m_pixFmt;
+                }
+
+                (*dec_ctx)->opaque = this;
+                (*dec_ctx)->get_format = [](AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts)
+                        -> AVPixelFormat {
+                    auto ff = reinterpret_cast<FFmpegBackend *>(ctx->opaque);
+                    return ff->getHWFmt(ctx, pix_fmts);
+                };
+                break;
+            }
+
+            if (config->device_type == m_hwType) {
+                (*dec_ctx)->pix_fmt = config->pix_fmt;
+
+                if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX) {
+                    if ((err = av_hwdevice_ctx_create(&(*dec_ctx)->hw_device_ctx,
+                            m_hwType, NULL, NULL, 0)) < 0) {
+                        spdlog::error("Failed to create specified HW device: {}.", av_err2str(err));
+                        return err;
+                    }
+                }
+
+                break;
+            }
+        }
+    }
+
+    if ((ret = avcodec_open2(*dec_ctx, dec, NULL)) < 0) {
+        spdlog::error("Failed to open {} codec", av_get_media_type_string(type));
+        return ret;
+    }
+    *stream_idx = stream_index;
  
     return 0;
 }
@@ -477,10 +477,17 @@ void FFmpegBackend::decodeVideo()
 
                 AVFrame *dstFrame = av_frame_alloc();
                 if (dstFrame) {
+                    if (m_swsContext == nullptr) {
+                        m_swsContext = sws_getContext(m_width, m_height, AVPixelFormat(tmpFrame->format),
+                                m_width, m_height, AV_PIX_FMT_RGB24, SWS_BICUBIC,
+                                NULL, NULL, NULL);
+                    }
+
                     if ((ret = sws_scale_frame(m_swsContext, dstFrame, tmpFrame)) < 0) {
                         spdlog::error("Failed to convert pixel format: {}", av_err2str(ret));
                     }
 
+                    av_frame_copy_props(dstFrame, frame);
                     vf->init(dstFrame);
                     av_frame_free(&dstFrame);
                 }
@@ -583,6 +590,22 @@ void FFmpegBackend::pushPacket(DecodeState &state, AVPacket *pkt)
     state.mux.unlock();
 }
 
+void FFmpegBackend::tryInitHWType()
+{
+    const char *hwDev = defaultHWdev;
+    if (getenv("SS_PLAYER_HW_DEV") != nullptr) {
+        hwDev = getenv("SS_PLAYER_HW_DEV");
+    }
+
+    m_hwType = av_hwdevice_find_type_by_name(hwDev);
+    if (m_hwType == AV_HWDEVICE_TYPE_NONE) {
+        spdlog::warn("Device type {} is not supported.", hwDev);
+        spdlog::warn("Available device types:");
+        while((m_hwType = av_hwdevice_iterate_types(m_hwType)) != AV_HWDEVICE_TYPE_NONE)
+            spdlog::warn("     {}", av_hwdevice_get_type_name(m_hwType));
+    }
+}
+
 bool FFmpegBackend::doInit()
 {
     return true;
@@ -594,16 +617,8 @@ bool FFmpegBackend::play()
         m_state = PLAYING;
     } else if (m_state == STOPPED || m_state == CREATED) {
         m_state = PLAYING;
-       
-        m_hwType = av_hwdevice_find_type_by_name(hwdev);
-        if (m_hwType == AV_HWDEVICE_TYPE_NONE) {
-            spdlog::error("Device type {} is not supported.", hwdev);
-            spdlog::error("Available device types:");
-            while((m_hwType = av_hwdevice_iterate_types(m_hwType)) != AV_HWDEVICE_TYPE_NONE)
-                spdlog::error("     {}", av_hwdevice_get_type_name(m_hwType));
-            spdlog::error("");
-            return false;
-        }
+
+        tryInitHWType();
 
         if (avformat_open_input(&m_fmtCtx, m_uri, NULL, NULL) < 0) {
             spdlog::error("Could not open source file {}", m_uri);
@@ -644,11 +659,8 @@ bool FFmpegBackend::play()
                 m_videoFrameInfo = VideoFrameInfo::create(m_width, m_height, NV12);
             } else {
                 m_videoFrameInfo = VideoFrameInfo::create(m_width, m_height, RGB);
-                if (m_pixFmt != AV_PIX_FMT_RGB24) {
-                    m_swsContext = sws_getContext(m_width, m_height,
-                            m_videoDecCtx->sw_pix_fmt != AV_PIX_FMT_NONE ? m_videoDecCtx->sw_pix_fmt : m_pixFmt,
-                            m_width, m_height, AV_PIX_FMT_RGB24, SWS_BICUBIC,
-                            NULL, NULL, NULL);
+                if (m_videoDecCtx->sw_pix_fmt == AV_PIX_FMT_NONE) {
+                    m_videoDecCtx->sw_pix_fmt = AV_PIX_FMT_RGB24;
                 }
             }
 

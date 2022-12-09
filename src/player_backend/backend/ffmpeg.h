@@ -96,6 +96,7 @@ private:
     void decodeAudio();
 
     void pushPacket(DecodeState &state, AVPacket *pkt);
+    void tryInitHWType();
 
 private:
     bool doInit() override;
